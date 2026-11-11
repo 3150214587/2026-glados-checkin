@@ -61,7 +61,7 @@ jobs:
           GLADOS_COOKIE: ${{ secrets[format('GLADOS_COOKIE_{0}', matrix.account)] }}
           # Must match the browser that created the current gld:sess.
           # Prefer the repository Variable; accept a same-named Secret for compatibility.
-          GLADOS_USER_AGENT: ${{ vars[format('GLADOS_USER_AGENT_{0}', matrix.account)] }}
+          GLADOS_USER_AGENT: ${{ vars[format('GLADOS_USER_AGENT_{0}', matrix.account)] || secrets[format('GLADOS_USER_AGENT_{0}', matrix.account)] || vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}
           CHECKIN_DIAGNOSTIC_ONLY: ${{ inputs.diagnose_only && 'true' || 'false' }}
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}

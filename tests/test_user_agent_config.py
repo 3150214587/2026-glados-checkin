@@ -186,7 +186,7 @@ class UserAgentWorkflowTests(unittest.TestCase):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/checkin.yml').read_text(encoding='utf-8')
         lines = [line.strip() for line in workflow.splitlines() if 'GLADOS_USER_AGENT:' in line]
         self.assertEqual(lines, [
-            'GLADOS_USER_AGENT: ${{ vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}'
+            "GLADOS_USER_AGENT: ${{ vars[format('GLADOS_USER_AGENT_{0}', matrix.account)] || secrets[format('GLADOS_USER_AGENT_{0}', matrix.account)] || vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}"
         ])
 
     def test_resolved_variable_secret_combinations_are_accepted(self):
