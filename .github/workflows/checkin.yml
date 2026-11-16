@@ -4,6 +4,7 @@ on:
   schedule:
     # UTC+8 上午 09:07–11:52 的候选时间；每天仅选中一个时间执行签到。
     # 分开声明以便即使排队延迟，也能用 event.schedule 识别原始候选时间。
+    # 保留同日排队延迟的事件；Turnstile 期间按上游默认只读核对。
     - cron: '7 1 * * *'
     - cron: '22 1 * * *'
     - cron: '37 1 * * *'
@@ -33,6 +34,11 @@ on:
         type: boolean
       points_audit:
         description: 只读诊断时查询积分流水，仅输出日期和积分数值
+        required: false
+        default: false
+        type: boolean
+      notify_status_only:
+        description: 只读核对并推送（需要配置通知渠道）
         required: false
         default: false
         type: boolean
@@ -95,13 +101,17 @@ jobs:
           # Must match the browser that created the current gld:sess.
           # Prefer the repository Variable; accept a same-named Secret for compatibility.
           GLADOS_USER_AGENT: ${{ vars[format('GLADOS_USER_AGENT_{0}', matrix.account)] || secrets[format('GLADOS_USER_AGENT_{0}', matrix.account)] || vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}
-          CHECKIN_DIAGNOSTIC_ONLY: ${{ inputs.diagnose_only && 'true' || 'false' }}
-          CHECKIN_POINTS_AUDIT: ${{ inputs.points_audit && 'true' || 'false' }}
+          # Follow upstream's read-only default until actual check-in is verified.
+          # Use diagnostic output because this deployment has no push credentials.
+          CHECKIN_DIAGNOSTIC_ONLY: ${{ (inputs.diagnose_only || ((github.event_name == 'schedule' || inputs.dispatch_source == 'external') && vars.ALLOW_SCHEDULED_CHECKIN != 'true')) && 'true' || 'false' }}
+          CHECKIN_POINTS_AUDIT: ${{ (inputs.points_audit || github.event_name == 'schedule' || inputs.dispatch_source == 'external') && 'true' || 'false' }}
+          CHECKIN_NOTIFY_STATUS_ONLY: ${{ inputs.notify_status_only && 'true' || 'false' }}
+          GLADOS_BROWSER_CHECKIN: '0'
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PUSH_LEVEL: ${{ vars.PUSH_LEVEL || 'fail_only' }}
           EXCHANGE_PLAN: ${{ vars.EXCHANGE_PLAN || 'off' }}
-          CHECKIN_MAX_ATTEMPTS: '3'
+          CHECKIN_MAX_ATTEMPTS: '1'
           CHECKIN_RETRY_DELAY_SECONDS: '60'

@@ -21,9 +21,14 @@ def should_run(event_name, event_schedule, now, repository):
     if event_name != 'schedule':
         return False
     local = now.astimezone(LOCAL_TZ)
-    if not 9 <= local.hour < 12:
+    chosen = selected_schedule(local.date(), repository)
+    minute, hour, *_ = chosen.split()
+    planned = local.replace(hour=int(hour) + 8, minute=int(minute), second=0, microsecond=0)
+    if local < planned:
         return False
-    return event_schedule == selected_schedule(local.date(), repository)
+    # GitHub can queue a morning event until the afternoon. Keep its identity
+    # instead of silently cancelling the whole day's work at noon.
+    return event_schedule == chosen
 
 
 def main():
@@ -33,7 +38,8 @@ def main():
     run = should_run(event_name, os.environ.get('EVENT_SCHEDULE', ''), now, repository)
     if event_name == 'schedule':
         minute, hour, *_ = selected_schedule(now.date(), repository).split()
-        print(f'Today selected {int(hour) + 8:02d}:{int(minute):02d} UTC+8; run={run}')
+        print(f'Today planned {int(hour) + 8:02d}:{int(minute):02d} UTC+8; '
+              f'actual={now.isoformat()}; event={os.environ.get("EVENT_SCHEDULE", "")}; run={run}')
     else:
         print(f'Manual run: bypass morning selection; run={run}')
     with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:

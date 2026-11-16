@@ -22,12 +22,22 @@ class MorningScheduleTests(unittest.TestCase):
             selected.add(winners[0])
         self.assertEqual(selected, set(schedule.SCHEDULES))
 
-    def test_delays_outside_morning_are_skipped(self):
+    def test_same_day_queue_delays_do_not_cancel_the_selected_slot(self):
         day = date(2026, 11, 12)
         cron = schedule.selected_schedule(day, 'owner/repo')
-        for hour in (0, 8, 12, 16, 23):
+        for hour in (12, 16, 23):
+            now = datetime(2026, 11, 12, hour, tzinfo=schedule.LOCAL_TZ)
+            self.assertTrue(schedule.should_run('schedule', cron, now, 'owner/repo'))
+        for hour in (0, 8):
             now = datetime(2026, 11, 12, hour, tzinfo=schedule.LOCAL_TZ)
             self.assertFalse(schedule.should_run('schedule', cron, now, 'owner/repo'))
+
+    def test_delayed_unselected_slots_still_do_not_run(self):
+        day = date(2026, 11, 12)
+        now = datetime(2026, 11, 12, 16, tzinfo=schedule.LOCAL_TZ)
+        winners = [cron for cron in schedule.SCHEDULES
+                   if schedule.should_run('schedule', cron, now, 'owner/repo')]
+        self.assertEqual(winners, [schedule.selected_schedule(day, 'owner/repo')])
 
     def test_manual_runs_bypass_selection_and_unknown_events_do_not(self):
         now = datetime(2026, 11, 12, 18, tzinfo=timezone.utc)
