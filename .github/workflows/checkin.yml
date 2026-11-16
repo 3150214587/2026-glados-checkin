@@ -31,6 +31,11 @@ on:
         required: false
         default: false
         type: boolean
+      points_audit:
+        description: 只读诊断时查询积分流水，仅输出日期和积分数值
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: glados-checkin
@@ -91,6 +96,7 @@ jobs:
           # Prefer the repository Variable; accept a same-named Secret for compatibility.
           GLADOS_USER_AGENT: ${{ vars[format('GLADOS_USER_AGENT_{0}', matrix.account)] || secrets[format('GLADOS_USER_AGENT_{0}', matrix.account)] || vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}
           CHECKIN_DIAGNOSTIC_ONLY: ${{ inputs.diagnose_only && 'true' || 'false' }}
+          CHECKIN_POINTS_AUDIT: ${{ inputs.points_audit && 'true' || 'false' }}
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

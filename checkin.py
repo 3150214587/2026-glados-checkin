@@ -656,6 +656,35 @@ def telegram_push(token, chat_id, title, content):
         log(f"❌ Telegram 推送失败: {e}")
         return False
 
+def audit_points(client):
+    """Log only numeric balances and ledger dates, without account identifiers."""
+    result = client.req('GET', '/api/user/points')
+    if not isinstance(result, dict) or result.get('code') != 0 or 'points' not in result:
+        log('POINTS_AUDIT: points query failed')
+        return
+
+    def number(value):
+        try:
+            parsed = float(value)
+            return parsed if math.isfinite(parsed) else None
+        except (ValueError, TypeError):
+            return None
+
+    entries = []
+    for row in result.get('history', [])[:100]:
+        if not isinstance(row, dict):
+            continue
+        stamp = number(row.get('time'))
+        if stamp is None or not 0 <= stamp <= 32503680000000:
+            continue
+        entries.append({
+            'time': datetime.fromtimestamp(stamp / 1000, timezone(timedelta(hours=8))).isoformat(),
+            'change': number(row.get('change')),
+            'balance': number(row.get('balance')),
+        })
+    log('POINTS_AUDIT: ' + json.dumps({'points': number(result['points']), 'history': entries}))
+
+
 def diagnose_accounts(cookies):
     """Read authentication status without check-in, redemption or notifications."""
     success_cnt = 0
@@ -675,6 +704,8 @@ def diagnose_accounts(cookies):
         if authenticated:
             success_cnt += 1
             log(f'✅ 账号 {i}: 登录状态查询成功')
+            if os.environ.get('CHECKIN_POINTS_AUDIT') == 'true':
+                audit_points(client)
         elif is_non_retryable_checkin_result(result):
             log(f'❌ 账号 {i}: 会话认证被拒绝；{summarize_checkin_failure(result)}')
         elif is_missing_api_response(result):
