@@ -19,6 +19,15 @@ on:
     - cron: '52 3 * * *'
   workflow_dispatch:
     inputs:
+      account:
+        description: 本次运行的账号
+        required: false
+        default: ALL
+        type: choice
+        options:
+          - ALL
+          - EDGE
+          - CHROME
       dispatch_source:
         description: 手动运行请选择 manual；外部定时器可不填（默认按 external）
         required: false
@@ -72,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        account: ${{ fromJSON(vars.GLADOS_ACCOUNTS || '["EDGE"]') }}
+        account: ${{ fromJSON(inputs.account != '' && inputs.account != 'ALL' && format('["{0}"]', inputs.account) || vars.GLADOS_ACCOUNTS || '["EDGE"]') }}
     if: needs.morning-selection.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -103,7 +112,7 @@ jobs:
           GLADOS_USER_AGENT: ${{ vars[format('GLADOS_USER_AGENT_{0}', matrix.account)] || secrets[format('GLADOS_USER_AGENT_{0}', matrix.account)] || vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}
           # Follow upstream's read-only default until actual check-in is verified.
           # Use diagnostic output because this deployment has no push credentials.
-          CHECKIN_DIAGNOSTIC_ONLY: ${{ (inputs.diagnose_only || ((github.event_name == 'schedule' || inputs.dispatch_source == 'external') && vars.ALLOW_SCHEDULED_CHECKIN != 'true')) && 'true' || 'false' }}
+          CHECKIN_DIAGNOSTIC_ONLY: ${{ (inputs.diagnose_only || ((github.event_name == 'schedule' || inputs.dispatch_source == 'external') && (vars[format('ALLOW_SCHEDULED_CHECKIN_{0}', matrix.account)] || vars.ALLOW_SCHEDULED_CHECKIN || 'false') != 'true')) && 'true' || 'false' }}
           CHECKIN_POINTS_AUDIT: ${{ (inputs.points_audit || github.event_name == 'schedule' || inputs.dispatch_source == 'external') && 'true' || 'false' }}
           CHECKIN_NOTIFY_STATUS_ONLY: ${{ inputs.notify_status_only && 'true' || 'false' }}
           GLADOS_BROWSER_CHECKIN: '0'
