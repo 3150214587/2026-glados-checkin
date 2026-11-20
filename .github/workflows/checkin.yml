@@ -2,21 +2,11 @@ name: GLaDOS 2026 Checkin
 
 on:
   schedule:
-    # UTC+8 上午 09:07–11:52 的候选时间；每天仅选中一个时间执行签到。
-    # 分开声明以便即使排队延迟，也能用 event.schedule 识别原始候选时间。
-    # 保留同日排队延迟的事件；Turnstile 期间按上游默认只读核对。
-    - cron: '7 1 * * *'
-    - cron: '22 1 * * *'
-    - cron: '37 1 * * *'
-    - cron: '52 1 * * *'
-    - cron: '7 2 * * *'
-    - cron: '22 2 * * *'
-    - cron: '37 2 * * *'
-    - cron: '52 2 * * *'
-    - cron: '7 3 * * *'
-    - cron: '22 3 * * *'
-    - cron: '37 3 * * *'
-    - cron: '52 3 * * *'
+    # 北京时间 09:30（UTC 01:30）。Turnstile 时期：定时与外部触发的运行自动降级为
+    # 只读状态推送（CHECKIN_NOTIFY_STATUS_ONLY=true），不再尝试签到，避免必然的
+    # 失败推送；机房 IP 无法通过 Turnstile。如官方撤下验证，把仓库变量
+    # ALLOW_SCHEDULED_CHECKIN 设为 true 即恢复完整签到。
+    - cron: '30 1 * * *'
   workflow_dispatch:
     inputs:
       account:
@@ -41,13 +31,8 @@ on:
         required: false
         default: false
         type: boolean
-      points_audit:
-        description: 只读诊断时查询积分流水，仅输出日期和积分数值
-        required: false
-        default: false
-        type: boolean
       notify_status_only:
-        description: 只读核对并推送（需要配置通知渠道）
+        description: 只读取账号状态与积分流水并发送通知（如 PushPlus），不发起签到请求、不自动兑换
         required: false
         default: false
         type: boolean
@@ -60,29 +45,13 @@ permissions:
   contents: read
 
 jobs:
-  morning-selection:
-    name: Select daily morning slot
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    outputs:
-      run: ${{ steps.select.outputs.run }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Select morning slot
-        id: select
-        run: python morning_schedule.py
-        env:
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
-
   checkin:
-    needs: morning-selection
+    if: github.event_name == 'schedule' || inputs.dispatch_source == 'manual' || inputs.dispatch_source == 'external'
     name: Checkin (${{ matrix.account }})
     strategy:
       fail-fast: false
       matrix:
         account: ${{ fromJSON(inputs.account != '' && inputs.account != 'ALL' && format('["{0}"]', inputs.account) || vars.GLADOS_ACCOUNTS || '["EDGE"]') }}
-    if: needs.morning-selection.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -110,11 +79,10 @@ jobs:
           # Must match the browser that created the current gld:sess.
           # Prefer the repository Variable; accept a same-named Secret for compatibility.
           GLADOS_USER_AGENT: ${{ vars[format('GLADOS_USER_AGENT_{0}', matrix.account)] || secrets[format('GLADOS_USER_AGENT_{0}', matrix.account)] || vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}
-          # Follow upstream's read-only default until actual check-in is verified.
-          # Use diagnostic output because this deployment has no push credentials.
+          # Keep the upstream read-only default unless this specific account is enabled.
           CHECKIN_DIAGNOSTIC_ONLY: ${{ (inputs.diagnose_only || ((github.event_name == 'schedule' || inputs.dispatch_source == 'external') && (vars[format('ALLOW_SCHEDULED_CHECKIN_{0}', matrix.account)] || vars.ALLOW_SCHEDULED_CHECKIN || 'false') != 'true')) && 'true' || 'false' }}
-          CHECKIN_POINTS_AUDIT: ${{ (inputs.points_audit || github.event_name == 'schedule' || inputs.dispatch_source == 'external') && 'true' || 'false' }}
           CHECKIN_NOTIFY_STATUS_ONLY: ${{ inputs.notify_status_only && 'true' || 'false' }}
+          CHECKIN_MAX_ATTEMPTS: '1'
           GLADOS_BROWSER_CHECKIN: '0'
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
@@ -122,5 +90,4 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PUSH_LEVEL: ${{ vars.PUSH_LEVEL || 'fail_only' }}
           EXCHANGE_PLAN: ${{ vars.EXCHANGE_PLAN || 'off' }}
-          CHECKIN_MAX_ATTEMPTS: '1'
           CHECKIN_RETRY_DELAY_SECONDS: '60'
