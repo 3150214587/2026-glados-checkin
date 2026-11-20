@@ -44,7 +44,7 @@ class MorningScheduleTests(unittest.TestCase):
         self.assertTrue(schedule.should_run('workflow_dispatch', '', now, 'owner/repo'))
         self.assertFalse(schedule.should_run('push', '', now, 'owner/repo'))
 
-    def test_workflow_has_the_same_candidate_slots(self):
+    def test_workflow_uses_the_upstream_daily_schedule(self):
         path = Path(__file__).resolve().parents[1] / '.github/workflows/checkin.yml'
         crons = re.findall(r"cron: '([^']+)'", path.read_text(encoding='utf-8'))
-        self.assertEqual(crons, list(schedule.SCHEDULES))
+        self.assertEqual(crons, ['30 1 * * *'])
